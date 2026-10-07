@@ -1,0 +1,37 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { BadgeIndianRupee, Calculator, HandCoins, PackageCheck, Truck, Warehouse } from "lucide-react";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import { BackToFarmTools } from "@/components/agro/BackToFarmTools";
+import { NumberField, SelectField } from "@/components/agro/FormFields";
+import { NextActionBlock, RecommendationBlock, ResultSection } from "@/components/agro/AgentResultSections";
+import { calculateMarketPlan, MARKET_CROPS, SELLING_CHANNELS, STORAGE_OPTIONS, type MarketInput } from "@/data/agri-modules";
+import { saveAnalysis } from "@/lib/agri-database";
+
+export const Route = createFileRoute("/farm-market-planner")({ head: () => ({ meta: [{ title: "Farm Profit & Market Planner | AgriWise Connect" }, { name: "description", content: "Estimate farm economics and plan practical harvest-to-market decisions." }] }), component: FarmMarketPlannerPage });
+const initial: MarketInput = { crop: "", area: "", expectedYield: "", sellingPrice: "", productionCost: "", transportCost: "", storage: "", channel: "" };
+const money = (n: number) => `₹${Math.abs(n).toLocaleString("en-IN")}`;
+function FarmMarketPlannerPage() {
+  const [input, setInput] = useState<MarketInput>(initial); const [result, setResult] = useState<ReturnType<typeof calculateMarketPlan> | null>(null);
+  const set = <K extends keyof MarketInput>(key: K, value: MarketInput[K]) => setInput((p) => ({ ...p, [key]: value }));
+  const analyze = () => {
+    const next = calculateMarketPlan(input);
+    setResult(next);
+    void saveAnalysis({ module: "farm-market-planner", title: `Market plan · ${input.crop}`, input: { ...input }, result: next as unknown as Record<string, unknown> });
+  };
+  return <main className="min-h-screen bg-background"><div className="mx-auto max-w-[1200px] px-5 py-10 sm:px-8 lg:px-12 lg:py-14"><BackToFarmTools />
+    <div className="mt-6 flex items-start gap-4"><span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand"><BadgeIndianRupee size={28} /></span><div><h1 className="display-font text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">Farm Profit & Market Planner</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Estimate harvest economics and organize the practical steps from field to buyer—an important real-world decision after production.</p></div></div>
+    <div className="mt-10 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start"><div className="rounded-2xl border border-border bg-panel p-5 shadow-[0_14px_45px_-32px_var(--foreground)] sm:p-7"><div className="grid grid-cols-2 gap-4">
+      <SelectField label="Crop" value={input.crop} onChange={(v) => set("crop", v as MarketInput["crop"])} options={MARKET_CROPS} placeholder="Select Crop" /><NumberField label="Farm Area" value={input.area} onChange={(v) => set("area", v)} placeholder="2" suffix="acre" min={0.1} />
+      <NumberField label="Expected Yield" value={input.expectedYield} onChange={(v) => set("expectedYield", v)} placeholder="2500" suffix="kg/acre" min={1} /><NumberField label="Expected Selling Price" value={input.sellingPrice} onChange={(v) => set("sellingPrice", v)} placeholder="25" suffix="₹/kg" min={0} />
+      <NumberField label="Production Cost" value={input.productionCost} onChange={(v) => set("productionCost", v)} placeholder="35000" suffix="₹/acre" min={0} /><NumberField label="Transport Cost" value={input.transportCost} onChange={(v) => set("transportCost", v)} placeholder="3000" suffix="₹/acre" min={0} />
+      <SelectField label="Storage Option" value={input.storage} onChange={(v) => set("storage", v as MarketInput["storage"])} options={STORAGE_OPTIONS} placeholder="Select Storage" /><SelectField label="Selling Channel" value={input.channel} onChange={(v) => set("channel", v as MarketInput["channel"])} options={SELLING_CHANNELS} placeholder="Select Channel" />
+    </div><button onClick={analyze} disabled={Object.values(input).some((v) => !v)} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3.5 text-sm font-bold text-brand-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"><Calculator size={17} /> Calculate Farm Plan</button></div>
+    <div className="space-y-5">{!result && <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-border bg-panel-muted p-10 text-center"><div><HandCoins size={30} className="mx-auto text-brand" /><p className="mt-3 text-sm font-semibold text-foreground">Your farm economics will appear here.</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Use your own expected price and actual costs to make the estimate useful.</p></div></div>}
+      {result && <><ResultSection icon={<BadgeIndianRupee size={16} />} title="Farm economics"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Production" value={`${result.production.toLocaleString()} kg`} /><Metric label="Revenue" value={money(result.revenue)} /><Metric label="Total cost" value={money(result.totalCost)} /><Metric label="Estimated profit" value={`${result.profit < 0 ? "−" : ""}${money(result.profit)}`} /></div><div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Margin" value={`${result.margin}%`} /><Metric label="Break-even price" value={`₹${result.breakEven}/kg`} /></div></ResultSection><ResultSection icon={<Warehouse size={16} />} title="Selling strategy"><p className="text-sm leading-6 text-foreground">{result.strategy}</p></ResultSection><RecommendationBlock title="Harvest-to-market checklist" items={result.actions} /><ResultSection icon={<Truck size={16} />} title="Real-world dispatch checks"><ul className="space-y-2 text-sm leading-6 text-foreground"><li>✓ Confirm weighing, quality grade and payment terms before loading.</li><li>✓ Compare at least two buyer offers when the crop is not time-critical.</li><li>✓ Include transport, loading, storage and spoilage in the final profit calculation.</li></ul></ResultSection><NextActionBlock items={[`Use ₹${result.breakEven}/kg as the estimated break-even reference—not as a guaranteed market price.`, "Update the plan with the actual realised price and final costs after sale."]} /></>}
+    </div></div>
+    <div className="mt-6 grid gap-3 sm:grid-cols-3"><Small icon={<PackageCheck size={17} />} title="Harvest readiness" text="Plan grading, packing and dispatch before harvest day." /><Small icon={<Warehouse size={17} />} title="Storage decision" text="Holding produce only makes sense after accounting for cost and quality risk." /><Small icon={<Truck size={17} />} title="Logistics" text="Transport can materially change your final margin." /></div>
+  </div></main>;
+}
+function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-border bg-panel-muted p-3"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p><p className="mt-1 text-lg font-bold text-foreground">{value}</p></div>; }
+function Small({ icon, title, text }: { icon: ReactNode; title: string; text: string }) { return <div className="rounded-xl border border-border bg-panel p-4"><div className="flex items-center gap-2 text-sm font-bold text-foreground">{icon}<span>{title}</span></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p></div>; }
